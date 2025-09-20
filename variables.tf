@@ -43,13 +43,19 @@ variable "localstack_endpoint" {
 variable "use_secure_string" {
   description = "If true, store the SSM parameter as SecureString"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "kms_key_arn" {
-  description = "Optional KMS key ARN for SecureString encryption. If empty and use_secure_string=true, uses AWS managed SSM KMS key."
+  description = "Optional KMS key ARN for SecureString encryption. If empty and use_secure_string=true, a CMK will be created and used."
   type        = string
   default     = ""
+}
+
+variable "kms_key_deletion_days" {
+  description = "KMS key deletion window in days for the created CMK"
+  type        = number
+  default     = 7
 }
 
 variable "lambda_timeout" {
@@ -73,11 +79,11 @@ variable "reserved_concurrency" {
 variable "log_retention_days" {
   description = "CloudWatch Logs retention in days"
   type        = number
-  default     = 14
+  default     = 400
 }
 
 locals {
-  ssm_parameter_name   = var.ssm_parameter_name != "" ? var.ssm_parameter_name : "/${var.project_name}/${var.environment}/dynamic_string"
+  ssm_parameter_name  = var.ssm_parameter_name != "" ? var.ssm_parameter_name : "/${var.project_name}/${var.environment}/dynamic_string"
   lambda_function_name = "${var.project_name}-${var.environment}-renderer"
   log_group_name       = "/aws/lambda/${local.lambda_function_name}"
   tags = {

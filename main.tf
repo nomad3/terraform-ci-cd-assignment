@@ -11,6 +11,7 @@ data "archive_file" "lambda_zip" {
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = local.log_group_name
   retention_in_days = var.log_retention_days
+  kms_key_id        = var.use_secure_string && var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)
   tags              = local.tags
 }
 
@@ -93,13 +94,29 @@ resource "aws_iam_role_policy_attachment" "lambda_kms_attach" {
   policy_arn = aws_iam_policy.kms_decrypt[0].arn
 }
 
+# Optional KMS key for SecureString when user did not provide one
+resource "aws_kms_key" "ssm" {
+  count                   = var.use_secure_string && var.kms_key_arn == "" ? 1 : 0
+  description             = "CMK for SecureString parameter"
+  deletion_window_in_days = var.kms_key_deletion_days
+  enable_key_rotation     = true
+  tags                    = local.tags
+}
+
+resource "aws_kms_alias" "ssm" {
+  count         = var.use_secure_string && var.kms_key_arn == "" ? 1 : 0
+  name          = "alias/${var.project_name}-${var.environment}-ssm"
+  target_key_id = aws_kms_key.ssm[0].id
+}
+
+# Update SSM parameter to always use encryption when enabled
 resource "aws_ssm_parameter" "dynamic_string" {
   name        = local.ssm_parameter_name
   description = "Dynamic string used by Lambda to render HTML"
   type        = var.use_secure_string ? "SecureString" : "String"
   value       = var.dynamic_string_default
   tier        = "Standard"
-  key_id      = var.use_secure_string && var.kms_key_arn != "" ? var.kms_key_arn : null
+  key_id      = var.use_secure_string ? (var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)) : null
   tags        = local.tags
 
   lifecycle {
@@ -108,14 +125,14 @@ resource "aws_ssm_parameter" "dynamic_string" {
 }
 
 resource "aws_lambda_function" "renderer" {
-  function_name                  = local.lambda_function_name
-  filename                       = data.archive_file.lambda_zip.output_path
-  source_code_hash               = data.archive_file.lambda_zip.output_base64sha256
-  handler                        = "handler.lambda_handler"
-  runtime                        = "python3.12"
-  role                           = aws_iam_role.lambda_exec.arn
-  timeout                        = var.lambda_timeout
-  memory_size                    = var.lambda_memory_mb
+  function_name    = local.lambda_function_name
+  filename         = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  handler          = "handler.lambda_handler"
+  runtime          = "python3.12"
+  role             = aws_iam_role.lambda_exec.arn
+  timeout          = var.lambda_timeout
+  memory_size      = var.lambda_memory_mb
   reserved_concurrent_executions = var.reserved_concurrency
 
   environment {
@@ -125,7 +142,15 @@ resource "aws_lambda_function" "renderer" {
     }
   }
 
-  tags       = local.tags
+  tracing_config {
+    mode = "PassThrough"
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  tags      = local.tags
   depends_on = [aws_cloudwatch_log_group.lambda]
 }
 
@@ -151,13 +176,15 @@ resource "aws_apigatewayv2_route" "root" {
   api_id    = aws_apigatewayv2_api.http_api[0].id
   route_key = "GET /"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration[0].id}"
+  authorization_type = "NONE"
 }
 
-# API Gateway access logs
+# API Gateway access logs (encrypted)
 resource "aws_cloudwatch_log_group" "api_gw" {
   count             = var.use_localstack ? 0 : 1
   name              = "/aws/apigateway/${var.project_name}-${var.environment}-http"
   retention_in_days = var.log_retention_days
+  kms_key_id        = var.use_secure_string && var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)
   tags              = local.tags
 }
 
@@ -192,6 +219,39 @@ resource "aws_lambda_permission" "allow_apigw" {
   function_name = aws_lambda_function.renderer.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "arn:${data.aws_partition.current.partition}:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.http_api[0].id}/*/*/*"
+}
+
+# Dead Letter Queue for Lambda (optional simple SQS)
+resource "aws_sqs_queue" "lambda_dlq" {
+  name                      = "${var.project_name}-${var.environment}-dlq"
+  message_retention_seconds = 1209600
+  kms_master_key_id         = var.use_secure_string && var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)
+  tags                      = local.tags
+}
+
+# IAM updates: allow Lambda to send to DLQ
+resource "aws_iam_policy" "lambda_dlq_policy" {
+  name        = "${var.project_name}-${var.environment}-lambda-dlq"
+  description = "Allow Lambda to send messages to DLQ"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid: "SQSSend",
+        Effect: "Allow",
+        Action: ["sqs:SendMessage"],
+        Resource: aws_sqs_queue.lambda_dlq.arn
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_dlq_attach" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_dlq_policy.arn
 }
 
 # Basic CloudWatch alarm for Lambda errors
