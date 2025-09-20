@@ -51,6 +51,9 @@ func TestDynamicStringService(t *testing.T) {
 		Vars:           vars,
 		NoColor:        true,
 		TerraformBinary: "terraform",
+		EnvVars: map[string]string{
+			"TF_CLI_ARGS_init": "-backend=false -input=false",
+		},
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -161,6 +164,9 @@ func TestDynamicStringUpdateOnly(t *testing.T) {
 		Vars:           vars,
 		NoColor:        true,
 		TerraformBinary: "terraform",
+		EnvVars: map[string]string{
+			"TF_CLI_ARGS_init": "-backend=false -input=false",
+		},
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
