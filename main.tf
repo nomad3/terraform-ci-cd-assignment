@@ -101,6 +101,26 @@ resource "aws_kms_key" "ssm" {
   deletion_window_in_days = var.kms_key_deletion_days
   enable_key_rotation     = true
   tags                    = local.tags
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid: "AllowAccountRootFullAccess",
+        Effect: "Allow",
+        Principal: { AWS: "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root" },
+        Action: "kms:*",
+        Resource: "*"
+      },
+      {
+        Sid: "AllowLambdaRoleDecrypt",
+        Effect: "Allow",
+        Principal: { AWS: aws_iam_role.lambda_exec.arn },
+        Action: ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey*", "kms:DescribeKey"],
+        Resource: "*"
+      }
+    ]
+  })
 }
 
 resource "aws_kms_alias" "ssm" {
@@ -125,6 +145,8 @@ resource "aws_ssm_parameter" "dynamic_string" {
 }
 
 resource "aws_lambda_function" "renderer" {
+  # checkov:skip=CKV_AWS_117: Small public demo; VPC not required for this use case
+  # checkov:skip=CKV_AWS_272: Code signing intentionally omitted for brevity in challenge
   function_name                  = local.lambda_function_name
   filename                       = data.archive_file.lambda_zip.output_path
   source_code_hash               = data.archive_file.lambda_zip.output_base64sha256
@@ -134,6 +156,7 @@ resource "aws_lambda_function" "renderer" {
   timeout                        = var.lambda_timeout
   memory_size                    = var.lambda_memory_mb
   reserved_concurrent_executions = var.reserved_concurrency
+  kms_key_arn                    = var.use_secure_string ? (var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)) : null
 
   environment {
     variables = {
