@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/gruntwork-io/terratest/modules/http-helper"
@@ -54,10 +55,16 @@ func TestDynamicStringService(t *testing.T) {
 	defer terraform.Destroy(t, terraformOptions)
 	terraform.InitAndApply(t, terraformOptions)
 
-	apiURL := terraform.Output(t, terraformOptions, "api_base_url")
+	var apiURL string
+	if !useLocal {
+		apiURL = terraform.Output(t, terraformOptions, "api_base_url")
+	}
+	lambdaName := terraform.Output(t, terraformOptions, "lambda_function_name")
 
 	expectedInitial := fmt.Sprintf("<h1>The saved string is %s</h1>", initial)
-	http_helper.HttpGetWithRetry(t, apiURL, nil, 200, expectedInitial, 10, 5*time.Second)
+	if !useLocal {
+		http_helper.HttpGetWithRetry(t, apiURL, nil, 200, expectedInitial, 10, 5*time.Second)
+	}
 
 	var cfg aws.Config
 	var err error
@@ -75,8 +82,24 @@ func TestDynamicStringService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load AWS config: %v", err)
 	}
-	ssmClient := ssm.NewFromConfig(cfg)
-	_, err = ssmClient.PutParameter(context.Background(), &ssm.PutParameterInput{
+
+	if useLocal {
+		// Directly invoke Lambda and check the response body
+		l := lambda.NewFromConfig(cfg)
+		out, err := l.Invoke(context.Background(), &lambda.InvokeInput{
+			FunctionName: &lambdaName,
+			Payload:      []byte("{}"),
+		})
+		if err != nil {
+			t.Fatalf("lambda invoke failed: %v", err)
+		}
+		if !strings.Contains(string(out.Payload), expectedInitial) {
+			t.Fatalf("unexpected lambda payload: %s", string(out.Payload))
+		}
+	}
+
+	smClient := ssm.NewFromConfig(cfg)
+	_, err = smClient.PutParameter(context.Background(), &ssm.PutParameterInput{
 		Name:      aws.String(paramName),
 		Value:     aws.String(updated),
 		Type:      types.ParameterTypeString,
@@ -87,5 +110,19 @@ func TestDynamicStringService(t *testing.T) {
 	}
 
 	expectedUpdated := fmt.Sprintf("<h1>The saved string is %s</h1>", updated)
-	http_helper.HttpGetWithRetry(t, apiURL, nil, 200, expectedUpdated, 15, 4*time.Second)
+	if useLocal {
+		l := lambda.NewFromConfig(cfg)
+		out, err := l.Invoke(context.Background(), &lambda.InvokeInput{
+			FunctionName: &lambdaName,
+			Payload:      []byte("{}"),
+		})
+		if err != nil {
+			t.Fatalf("lambda invoke failed: %v", err)
+		}
+		if !strings.Contains(string(out.Payload), expectedUpdated) {
+			t.Fatalf("unexpected lambda payload (updated): %s", string(out.Payload))
+		}
+	} else {
+		http_helper.HttpGetWithRetry(t, apiURL, nil, 200, expectedUpdated, 15, 4*time.Second)
+	}
 }

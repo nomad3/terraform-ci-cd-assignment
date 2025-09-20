@@ -81,12 +81,12 @@ resource "aws_ssm_parameter" "dynamic_string" {
 }
 
 resource "aws_lambda_function" "renderer" {
-  function_name = local.lambda_function_name
-  filename      = data.archive_file.lambda_zip.output_path
+  function_name    = local.lambda_function_name
+  filename         = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  handler       = "handler.lambda_handler"
-  runtime       = "python3.12"
-  role          = aws_iam_role.lambda_exec.arn
+  handler          = "handler.lambda_handler"
+  runtime          = "python3.12"
+  role             = aws_iam_role.lambda_exec.arn
 
   environment {
     variables = {
@@ -95,18 +95,20 @@ resource "aws_lambda_function" "renderer" {
     }
   }
 
-  tags = local.tags
+  tags      = local.tags
   depends_on = [aws_cloudwatch_log_group.lambda]
 }
 
 resource "aws_apigatewayv2_api" "http_api" {
+  count         = var.use_localstack ? 0 : 1
   name          = "${var.project_name}-${var.environment}-http-api"
   protocol_type = "HTTP"
   tags          = local.tags
 }
 
 resource "aws_apigatewayv2_integration" "lambda_integration" {
-  api_id                 = aws_apigatewayv2_api.http_api.id
+  count                  = var.use_localstack ? 0 : 1
+  api_id                 = aws_apigatewayv2_api.http_api[0].id
   integration_type       = "AWS_PROXY"
   integration_method     = "POST"
   payload_format_version = "2.0"
@@ -115,22 +117,25 @@ resource "aws_apigatewayv2_integration" "lambda_integration" {
 
 # Route root path to the Lambda
 resource "aws_apigatewayv2_route" "root" {
-  api_id    = aws_apigatewayv2_api.http_api.id
+  count     = var.use_localstack ? 0 : 1
+  api_id    = aws_apigatewayv2_api.http_api[0].id
   route_key = "GET /"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration[0].id}"
 }
 
 resource "aws_apigatewayv2_stage" "default" {
-  api_id      = aws_apigatewayv2_api.http_api.id
+  count       = var.use_localstack ? 0 : 1
+  api_id      = aws_apigatewayv2_api.http_api[0].id
   name        = "$default"
   auto_deploy = true
   tags        = local.tags
 }
 
 resource "aws_lambda_permission" "allow_apigw" {
+  count        = var.use_localstack ? 0 : 1
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.renderer.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "arn:${data.aws_partition.current.partition}:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.http_api.id}/*/*/*"
+  source_arn    = "arn:${data.aws_partition.current.partition}:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.http_api[0].id}/*/*/*"
 }
