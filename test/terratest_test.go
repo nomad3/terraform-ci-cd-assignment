@@ -52,7 +52,7 @@ func TestDynamicStringService(t *testing.T) {
 		NoColor:        true,
 		TerraformBinary: "terraform",
 		EnvVars: map[string]string{
-			"TF_CLI_ARGS_init": "-backend=false -input=false",
+			"TF_CLI_ARGS_init": "-backend=false -reconfigure -input=false",
 		},
 	}
 
@@ -165,7 +165,7 @@ func TestDynamicStringUpdateOnly(t *testing.T) {
 		NoColor:        true,
 		TerraformBinary: "terraform",
 		EnvVars: map[string]string{
-			"TF_CLI_ARGS_init": "-backend=false -input=false",
+			"TF_CLI_ARGS_init": "-backend=false -reconfigure -input=false",
 		},
 	}
 
