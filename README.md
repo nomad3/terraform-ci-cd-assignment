@@ -172,3 +172,19 @@ Security options:
 - Set `use_secure_string=true` and optionally `kms_key_arn` to store the value as `SecureString` (Lambda will decrypt via IAM).
 - Tune Lambda with `lambda_timeout`, `lambda_memory_mb`, and `reserved_concurrency`.
 - Logs retention is configurable via `log_retention_days`.
+
+## CI/CD (GitHub Actions)
+Three workflows are included under `.github/workflows/`:
+- `plan.yml` (terraform-plan): runs on pull requests; executes `fmt`, `init`, `validate`, and `plan`.
+- `apply.yml` (terraform-apply): runs on pushes to `main` and via manual dispatch; executes `init` and `apply -auto-approve`.
+- `terratest.yml` (terratest-local): runs on PR and manual dispatch; starts LocalStack and runs the Terratest suite.
+
+Required repository secrets (Settings → Secrets and variables → Actions):
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION` (set to `eu-west-2`)
+
+Notes:
+- Prefer using a least-privilege IAM user/role for CI.
+- The apply workflow will modify live resources in your account. Consider using a dedicated sandbox account.
+- If you switch to OIDC later, replace secrets with `aws-actions/configure-aws-credentials` and an assumable role.
