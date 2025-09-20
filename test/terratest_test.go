@@ -47,9 +47,10 @@ func TestDynamicStringService(t *testing.T) {
 	}
 
 	terraformOptions := &terraform.Options{
-		TerraformDir: "..",
-		Vars:         vars,
-		NoColor:      true,
+		TerraformDir:   "..",
+		Vars:           vars,
+		NoColor:        true,
+		TerraformBinary: "terraform",
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -156,9 +157,10 @@ func TestDynamicStringUpdateOnly(t *testing.T) {
 	}
 
 	terraformOptions := &terraform.Options{
-		TerraformDir: "..",
-		Vars:         vars,
-		NoColor:      true,
+		TerraformDir:   "..",
+		Vars:           vars,
+		NoColor:        true,
+		TerraformBinary: "terraform",
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
