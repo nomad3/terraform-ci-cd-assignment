@@ -21,8 +21,8 @@ resource "aws_iam_role" "lambda_exec" {
     Version = "2012-10-17"
     Statement = [
       {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
+        Action    = "sts:AssumeRole"
+        Effect    = "Allow"
         Principal = { Service = "lambda.amazonaws.com" }
       }
     ]
@@ -39,9 +39,9 @@ resource "aws_iam_policy" "lambda_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "LogsWrite"
-        Effect   = "Allow"
-        Action   = [
+        Sid    = "LogsWrite"
+        Effect = "Allow"
+        Action = [
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
@@ -71,9 +71,9 @@ resource "aws_iam_policy" "kms_decrypt" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid    = "KMSDecryptForSSM",
-        Effect = "Allow",
-        Action = ["kms:Decrypt"],
+        Sid      = "KMSDecryptForSSM",
+        Effect   = "Allow",
+        Action   = ["kms:Decrypt"],
         Resource = var.kms_key_arn != "" ? var.kms_key_arn : "*"
       }
     ]
@@ -108,14 +108,14 @@ resource "aws_ssm_parameter" "dynamic_string" {
 }
 
 resource "aws_lambda_function" "renderer" {
-  function_name    = local.lambda_function_name
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  handler          = "handler.lambda_handler"
-  runtime          = "python3.12"
-  role             = aws_iam_role.lambda_exec.arn
-  timeout          = var.lambda_timeout
-  memory_size      = var.lambda_memory_mb
+  function_name                  = local.lambda_function_name
+  filename                       = data.archive_file.lambda_zip.output_path
+  source_code_hash               = data.archive_file.lambda_zip.output_base64sha256
+  handler                        = "handler.lambda_handler"
+  runtime                        = "python3.12"
+  role                           = aws_iam_role.lambda_exec.arn
+  timeout                        = var.lambda_timeout
+  memory_size                    = var.lambda_memory_mb
   reserved_concurrent_executions = var.reserved_concurrency
 
   environment {
@@ -125,7 +125,7 @@ resource "aws_lambda_function" "renderer" {
     }
   }
 
-  tags      = local.tags
+  tags       = local.tags
   depends_on = [aws_cloudwatch_log_group.lambda]
 }
 
@@ -171,22 +171,22 @@ resource "aws_apigatewayv2_stage" "default" {
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gw[0].arn
     format = jsonencode({
-      requestId  = "$context.requestId"
-      ip         = "$context.identity.sourceIp"
-      requestTime= "$context.requestTime"
-      httpMethod = "$context.httpMethod"
-      routeKey   = "$context.routeKey"
-      status     = "$context.status"
-      protocol   = "$context.protocol"
-      responseLength = "$context.responseLength"
+      requestId         = "$context.requestId"
+      ip                = "$context.identity.sourceIp"
+      requestTime       = "$context.requestTime"
+      httpMethod        = "$context.httpMethod"
+      routeKey          = "$context.routeKey"
+      status            = "$context.status"
+      protocol          = "$context.protocol"
+      responseLength    = "$context.responseLength"
       integrationStatus = "$context.integrationStatus"
-      errorMessage = "$context.error.message"
+      errorMessage      = "$context.error.message"
     })
   }
 }
 
 resource "aws_lambda_permission" "allow_apigw" {
-  count        = var.use_localstack ? 0 : 1
+  count         = var.use_localstack ? 0 : 1
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.renderer.function_name
