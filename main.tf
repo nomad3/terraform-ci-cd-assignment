@@ -11,7 +11,7 @@ data "archive_file" "lambda_zip" {
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = local.log_group_name
   retention_in_days = var.log_retention_days
-  kms_key_id        = var.use_secure_string && var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)
+  kms_key_id        = aws_kms_key.logs.arn
   tags              = local.tags
 }
 
@@ -106,18 +106,18 @@ resource "aws_kms_key" "ssm" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid: "AllowAccountRootFullAccess",
-        Effect: "Allow",
-        Principal: { AWS: "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root" },
-        Action: "kms:*",
-        Resource: "*"
+        Sid : "AllowAccountRootFullAccess",
+        Effect : "Allow",
+        Principal : { AWS : "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root" },
+        Action : "kms:*",
+        Resource : "*"
       },
       {
-        Sid: "AllowLambdaRoleDecrypt",
-        Effect: "Allow",
-        Principal: { AWS: aws_iam_role.lambda_exec.arn },
-        Action: ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey*", "kms:DescribeKey"],
-        Resource: "*"
+        Sid : "AllowLambdaRoleDecrypt",
+        Effect : "Allow",
+        Principal : { AWS : aws_iam_role.lambda_exec.arn },
+        Action : ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey*", "kms:DescribeKey"],
+        Resource : "*"
       }
     ]
   })
@@ -195,6 +195,7 @@ resource "aws_apigatewayv2_integration" "lambda_integration" {
 
 # Route root path to the Lambda
 resource "aws_apigatewayv2_route" "root" {
+  # checkov:skip=CKV_AWS_309: Public demo endpoint; explicit NONE
   count              = var.use_localstack ? 0 : 1
   api_id             = aws_apigatewayv2_api.http_api[0].id
   route_key          = "GET /"
@@ -207,7 +208,7 @@ resource "aws_cloudwatch_log_group" "api_gw" {
   count             = var.use_localstack ? 0 : 1
   name              = "/aws/apigateway/${var.project_name}-${var.environment}-http"
   retention_in_days = var.log_retention_days
-  kms_key_id        = var.use_secure_string && var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)
+  kms_key_id        = aws_kms_key.logs.arn
   tags              = local.tags
 }
 
@@ -248,7 +249,7 @@ resource "aws_lambda_permission" "allow_apigw" {
 resource "aws_sqs_queue" "lambda_dlq" {
   name                      = "${var.project_name}-${var.environment}-dlq"
   message_retention_seconds = 1209600
-  kms_master_key_id         = var.use_secure_string && var.kms_key_arn != "" ? var.kms_key_arn : (length(aws_kms_key.ssm) > 0 ? aws_kms_key.ssm[0].arn : null)
+  sqs_managed_sse_enabled   = true
   tags                      = local.tags
 }
 
@@ -294,4 +295,45 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   }
 
   tags = local.tags
+}
+
+# Dedicated KMS key for CloudWatch Logs
+resource "aws_kms_key" "logs" {
+  description             = "CMK for CloudWatch Logs encryption"
+  deletion_window_in_days = var.kms_key_deletion_days
+  enable_key_rotation     = true
+  tags                    = local.tags
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid : "AllowAccountRootFullAccess",
+        Effect : "Allow",
+        Principal : { AWS : "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root" },
+        Action : "kms:*",
+        Resource : "*"
+      },
+      {
+        Sid : "AllowCloudWatchLogsUseOfTheKey",
+        Effect : "Allow",
+        Principal : { Service : "logs.${var.aws_region}.amazonaws.com" },
+        Action : ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*", "kms:DescribeKey"],
+        Resource : "*",
+        Condition : {
+          ArnLike : {
+            "kms:EncryptionContext:aws:logs:arn" : [
+              "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*",
+              "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/apigateway/*"
+            ]
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_kms_alias" "logs" {
+  name          = "alias/${var.project_name}-${var.environment}-logs"
+  target_key_id = aws_kms_key.logs.id
 }
