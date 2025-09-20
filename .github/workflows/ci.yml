@@ -88,7 +88,7 @@ jobs:
         run: |
           docker run -d --name localstack_main \
             -p 4566:4566 -p 4510-4559:4510-4559 \
-            -e SERVICES=lambda,ssm,iam,sts,logs,cloudwatch \
+            -e SERVICES=lambda,ssm,iam,sts,logs,cloudwatch,kms,sqs \
             -v /var/run/docker.sock:/var/run/docker.sock \
             localstack/localstack
 

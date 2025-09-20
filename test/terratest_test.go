@@ -46,14 +46,19 @@ func TestDynamicStringService(t *testing.T) {
 		vars["localstack_endpoint"] = lsEndpoint
 	}
 
+	envVars := map[string]string{
+		"TF_CLI_ARGS_init": "-reconfigure -input=false",
+	}
+	if useLocal {
+		envVars["TF_CLI_ARGS_init"] = "-backend=false -reconfigure -input=false"
+	}
+
 	terraformOptions := &terraform.Options{
 		TerraformDir:   "..",
 		Vars:           vars,
 		NoColor:        true,
 		TerraformBinary: "terraform",
-		EnvVars: map[string]string{
-			"TF_CLI_ARGS_init": "-backend=false -reconfigure -input=false",
-		},
+		EnvVars:        envVars,
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -159,14 +164,19 @@ func TestDynamicStringUpdateOnly(t *testing.T) {
 		vars["localstack_endpoint"] = lsEndpoint
 	}
 
+	envVars := map[string]string{
+		"TF_CLI_ARGS_init": "-reconfigure -input=false",
+	}
+	if useLocal {
+		envVars["TF_CLI_ARGS_init"] = "-backend=false -reconfigure -input=false"
+	}
+
 	terraformOptions := &terraform.Options{
 		TerraformDir:   "..",
 		Vars:           vars,
 		NoColor:        true,
 		TerraformBinary: "terraform",
-		EnvVars: map[string]string{
-			"TF_CLI_ARGS_init": "-backend=false -reconfigure -input=false",
-		},
+		EnvVars:        envVars,
 	}
 
 	defer terraform.Destroy(t, terraformOptions)

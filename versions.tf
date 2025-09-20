@@ -27,6 +27,8 @@ provider "aws" {
       ssm          = var.localstack_endpoint
       iam          = var.localstack_endpoint
       sts          = var.localstack_endpoint
+      kms          = var.localstack_endpoint
+      sqs          = var.localstack_endpoint
     }
   }
 }

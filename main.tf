@@ -11,7 +11,7 @@ data "archive_file" "lambda_zip" {
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = local.log_group_name
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.logs.arn
+  kms_key_id        = var.use_localstack ? null : aws_kms_key.logs[0].arn
   tags              = local.tags
 }
 
@@ -208,7 +208,7 @@ resource "aws_cloudwatch_log_group" "api_gw" {
   count             = var.use_localstack ? 0 : 1
   name              = "/aws/apigateway/${var.project_name}-${var.environment}-http"
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.logs.arn
+  kms_key_id        = aws_kms_key.logs[0].arn
   tags              = local.tags
 }
 
@@ -299,6 +299,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
 
 # Dedicated KMS key for CloudWatch Logs
 resource "aws_kms_key" "logs" {
+  count                   = var.use_localstack ? 0 : 1
   description             = "CMK for CloudWatch Logs encryption"
   deletion_window_in_days = var.kms_key_deletion_days
   enable_key_rotation     = true
@@ -334,6 +335,7 @@ resource "aws_kms_key" "logs" {
 }
 
 resource "aws_kms_alias" "logs" {
-  name          = "alias/${var.project_name}-${var.environment}-logs"
-  target_key_id = aws_kms_key.logs.id
+  count        = var.use_localstack ? 0 : 1
+  name         = "alias/${var.project_name}-${var.environment}-logs"
+  target_key_id = aws_kms_key.logs[0].id
 }
