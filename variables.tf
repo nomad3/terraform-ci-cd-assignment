@@ -28,6 +28,18 @@ variable "dynamic_string_default" {
   default     = "Hello from Terraform"
 }
 
+variable "use_localstack" {
+  description = "If true, point AWS provider endpoints to LocalStack"
+  type        = bool
+  default     = false
+}
+
+variable "localstack_endpoint" {
+  description = "LocalStack endpoint URL"
+  type        = string
+  default     = "http://localhost:4566"
+}
+
 locals {
   ssm_parameter_name  = var.ssm_parameter_name != "" ? var.ssm_parameter_name : "/${var.project_name}/${var.environment}/dynamic_string"
   lambda_function_name = "${var.project_name}-${var.environment}-renderer"

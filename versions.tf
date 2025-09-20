@@ -16,4 +16,17 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  dynamic "endpoints" {
+    for_each = var.use_localstack ? [1] : []
+    content {
+      apigatewayv2 = var.localstack_endpoint
+      cloudwatch   = var.localstack_endpoint
+      lambda       = var.localstack_endpoint
+      logs         = var.localstack_endpoint
+      ssm          = var.localstack_endpoint
+      iam          = var.localstack_endpoint
+      sts          = var.localstack_endpoint
+    }
+  }
 }

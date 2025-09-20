@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -27,15 +28,27 @@ func TestDynamicStringService(t *testing.T) {
 	initial := "Hello Terratest"
 	updated := "Updated by Terratest"
 
+	useLocal := os.Getenv("LOCALSTACK") == "1"
+	lsEndpoint := os.Getenv("LOCALSTACK_ENDPOINT")
+	if lsEndpoint == "" {
+		lsEndpoint = "http://localhost:4566"
+	}
+
+	vars := map[string]interface{}{
+		"aws_region":             region,
+		"environment":            env,
+		"ssm_parameter_name":     paramName,
+		"dynamic_string_default": initial,
+	}
+	if useLocal {
+		vars["use_localstack"] = true
+		vars["localstack_endpoint"] = lsEndpoint
+	}
+
 	terraformOptions := &terraform.Options{
 		TerraformDir: "..",
-		Vars: map[string]interface{}{
-			"aws_region":              region,
-			"environment":             env,
-			"ssm_parameter_name":      paramName,
-			"dynamic_string_default":  initial,
-		},
-		NoColor: true,
+		Vars:         vars,
+		NoColor:      true,
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -46,7 +59,19 @@ func TestDynamicStringService(t *testing.T) {
 	expectedInitial := fmt.Sprintf("<h1>The saved string is %s</h1>", initial)
 	http_helper.HttpGetWithRetry(t, apiURL, nil, 200, expectedInitial, 10, 5*time.Second)
 
-	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+	var cfg aws.Config
+	var err error
+	if useLocal {
+		resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{URL: lsEndpoint, HostnameImmutable: true}, nil
+		})
+		cfg, err = config.LoadDefaultConfig(context.Background(),
+			config.WithRegion(region),
+			config.WithEndpointResolverWithOptions(resolver),
+		)
+	} else {
+		cfg, err = config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+	}
 	if err != nil {
 		t.Fatalf("failed to load AWS config: %v", err)
 	}

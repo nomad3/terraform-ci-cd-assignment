@@ -89,3 +89,19 @@ make test
 ```
 
 The test deploys into a unique `environment` (e.g., `test-<id>`), verifies the HTML, updates the SSM value, verifies again, and then destroys all resources.
+
+## True local testing with LocalStack
+Prerequisites: Docker, LocalStack (`pipx install localstack-cli` or Docker), Go.
+
+- Start LocalStack:
+```bash
+localstack start -d
+# or with Docker: docker run -p 4566:4566 -p 4510-4559:4510-4559 localstack/localstack
+```
+
+- Run the test suite against LocalStack:
+```bash
+LOCALSTACK=1 make test
+```
+
+The test sets Terraform provider endpoints to LocalStack and uses AWS SDK pointing to `http://localhost:4566`. No AWS account needed.
