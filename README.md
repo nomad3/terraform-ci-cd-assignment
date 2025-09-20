@@ -91,17 +91,28 @@ make test
 The test deploys into a unique `environment` (e.g., `test-<id>`), verifies the HTML, updates the SSM value, verifies again, and then destroys all resources.
 
 ## True local testing with LocalStack
-Prerequisites: Docker, LocalStack (`pipx install localstack-cli` or Docker), Go.
+Run end-to-end tests without an AWS account. The test skips API Gateway in local mode and invokes the Lambda directly.
 
-- Start LocalStack:
-```bash
-localstack start -d
-# or with Docker: docker run -p 4566:4566 -p 4510-4559:4510-4559 localstack/localstack
-```
+Prerequisites: Docker, Go.
 
-- Run the test suite against LocalStack:
 ```bash
+# Start LocalStack with Docker socket so Lambda can run containers
+docker rm -f localstack_main 2>/dev/null || true
+docker run -d --name localstack_main \
+  -p 4566:4566 -p 4510-4559:4510-4559 \
+  -e SERVICES=lambda,ssm,iam,sts,logs,cloudwatch \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  localstack/localstack
+
+# Use dummy credentials (LocalStack accepts any) and disable profile reads
+unset AWS_PROFILE
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=eu-west-2
+
+# Run the test suite against LocalStack
 LOCALSTACK=1 make test
 ```
 
-The test sets Terraform provider endpoints to LocalStack and uses AWS SDK pointing to `http://localhost:4566`. No AWS account needed.
+Troubleshooting:
+- Check LocalStack logs: `docker logs -f localstack_main`
+- Health check: `curl -s http://localhost:4566/_localstack/health | jq`
+- Run in a clean environment: `AWS_PROFILE= AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=eu-west-2 LOCALSTACK=1 make test`
