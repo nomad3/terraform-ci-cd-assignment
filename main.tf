@@ -125,14 +125,14 @@ resource "aws_ssm_parameter" "dynamic_string" {
 }
 
 resource "aws_lambda_function" "renderer" {
-  function_name    = local.lambda_function_name
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  handler          = "handler.lambda_handler"
-  runtime          = "python3.12"
-  role             = aws_iam_role.lambda_exec.arn
-  timeout          = var.lambda_timeout
-  memory_size      = var.lambda_memory_mb
+  function_name                  = local.lambda_function_name
+  filename                       = data.archive_file.lambda_zip.output_path
+  source_code_hash               = data.archive_file.lambda_zip.output_base64sha256
+  handler                        = "handler.lambda_handler"
+  runtime                        = "python3.12"
+  role                           = aws_iam_role.lambda_exec.arn
+  timeout                        = var.lambda_timeout
+  memory_size                    = var.lambda_memory_mb
   reserved_concurrent_executions = var.reserved_concurrency
 
   environment {
@@ -150,7 +150,7 @@ resource "aws_lambda_function" "renderer" {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
 
-  tags      = local.tags
+  tags       = local.tags
   depends_on = [aws_cloudwatch_log_group.lambda]
 }
 
@@ -172,10 +172,10 @@ resource "aws_apigatewayv2_integration" "lambda_integration" {
 
 # Route root path to the Lambda
 resource "aws_apigatewayv2_route" "root" {
-  count     = var.use_localstack ? 0 : 1
-  api_id    = aws_apigatewayv2_api.http_api[0].id
-  route_key = "GET /"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration[0].id}"
+  count              = var.use_localstack ? 0 : 1
+  api_id             = aws_apigatewayv2_api.http_api[0].id
+  route_key          = "GET /"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration[0].id}"
   authorization_type = "NONE"
 }
 
@@ -238,10 +238,10 @@ resource "aws_iam_policy" "lambda_dlq_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid: "SQSSend",
-        Effect: "Allow",
-        Action: ["sqs:SendMessage"],
-        Resource: aws_sqs_queue.lambda_dlq.arn
+        Sid : "SQSSend",
+        Effect : "Allow",
+        Action : ["sqs:SendMessage"],
+        Resource : aws_sqs_queue.lambda_dlq.arn
       }
     ]
   })

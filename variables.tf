@@ -83,7 +83,7 @@ variable "log_retention_days" {
 }
 
 locals {
-  ssm_parameter_name  = var.ssm_parameter_name != "" ? var.ssm_parameter_name : "/${var.project_name}/${var.environment}/dynamic_string"
+  ssm_parameter_name   = var.ssm_parameter_name != "" ? var.ssm_parameter_name : "/${var.project_name}/${var.environment}/dynamic_string"
   lambda_function_name = "${var.project_name}-${var.environment}-renderer"
   log_group_name       = "/aws/lambda/${local.lambda_function_name}"
   tags = {
