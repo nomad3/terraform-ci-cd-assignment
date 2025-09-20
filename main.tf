@@ -335,7 +335,7 @@ resource "aws_kms_key" "logs" {
 }
 
 resource "aws_kms_alias" "logs" {
-  count        = var.use_localstack ? 0 : 1
-  name         = "alias/${var.project_name}-${var.environment}-logs"
+  count         = var.use_localstack ? 0 : 1
+  name          = "alias/${var.project_name}-${var.environment}-logs"
   target_key_id = aws_kms_key.logs[0].id
 }
