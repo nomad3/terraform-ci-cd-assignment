@@ -1,5 +1,4 @@
-soft_fail: false
-framework: terraform
-skip_download: true
+framework:
+  - terraform
 quiet: true
 compact: true
