@@ -33,6 +33,7 @@ resource "aws_iam_role" "lambda_exec" {
 }
 
 resource "aws_iam_policy" "lambda_policy" {
+  count       = var.use_localstack ? 0 : 1
   name        = "${var.project_name}-${var.environment}-lambda-policy"
   description = "Allow Lambda to read SSM parameter and write logs"
 
@@ -62,6 +63,35 @@ resource "aws_iam_policy" "lambda_policy" {
   tags = local.tags
 }
 
+resource "aws_iam_role_policy" "lambda_inline" {
+  count = var.use_localstack ? 1 : 0
+  name  = "${var.project_name}-${var.environment}-lambda-inline"
+  role  = aws_iam_role.lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "LogsWrite",
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.log_group_name}:*"
+      },
+      {
+        Sid    = "ReadDynamicStringParameter",
+        Effect = "Allow",
+        Action = [
+          "ssm:GetParameter"
+        ],
+        Resource = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${local.ssm_parameter_name}"
+      }
+    ]
+  })
+}
+
 # Extra policy only when SecureString is enabled
 resource "aws_iam_policy" "kms_decrypt" {
   count       = var.use_secure_string ? 1 : 0
@@ -84,8 +114,9 @@ resource "aws_iam_policy" "kms_decrypt" {
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_attach" {
+  count      = var.use_localstack ? 0 : 1
   role       = aws_iam_role.lambda_exec.name
-  policy_arn = aws_iam_policy.lambda_policy.arn
+  policy_arn = aws_iam_policy.lambda_policy[0].arn
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_kms_attach" {
