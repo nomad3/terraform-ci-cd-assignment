@@ -12,7 +12,7 @@ def _get_dynamic_string() -> str:
     if not PARAM_NAME:
         return DEFAULT_STRING
     try:
-        resp = _ssm_client.get_parameter(Name=PARAM_NAME, WithDecryption=False)
+        resp = _ssm_client.get_parameter(Name=PARAM_NAME, WithDecryption=True)
         value = resp.get("Parameter", {}).get("Value")
         if not value:
             return DEFAULT_STRING

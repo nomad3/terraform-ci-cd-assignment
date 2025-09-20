@@ -40,6 +40,42 @@ variable "localstack_endpoint" {
   default     = "http://localhost:4566"
 }
 
+variable "use_secure_string" {
+  description = "If true, store the SSM parameter as SecureString"
+  type        = bool
+  default     = false
+}
+
+variable "kms_key_arn" {
+  description = "Optional KMS key ARN for SecureString encryption. If empty and use_secure_string=true, uses AWS managed SSM KMS key."
+  type        = string
+  default     = ""
+}
+
+variable "lambda_timeout" {
+  description = "Lambda timeout in seconds"
+  type        = number
+  default     = 3
+}
+
+variable "lambda_memory_mb" {
+  description = "Lambda memory size in MB"
+  type        = number
+  default     = 128
+}
+
+variable "reserved_concurrency" {
+  description = "Reserved concurrency for the Lambda function (-1 disables reservation)"
+  type        = number
+  default     = -1
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention in days"
+  type        = number
+  default     = 14
+}
+
 locals {
   ssm_parameter_name  = var.ssm_parameter_name != "" ? var.ssm_parameter_name : "/${var.project_name}/${var.environment}/dynamic_string"
   lambda_function_name = "${var.project_name}-${var.environment}-renderer"
