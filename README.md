@@ -158,3 +158,17 @@ make destroy
 Notes:
 - If your CLI default region isn’t eu-west-2, pass `--region eu-west-2` (or export `AWS_REGION=eu-west-2`).
 - The API URL does not change when the string changes; all users see the same updated value.
+
+## Remote state (optional)
+Use `backend.tf.example` to configure an S3 backend and DynamoDB lock table. Copy and edit it to `backend.tf` with your bucket/table names, then run `make init` again.
+
+```bash
+cp backend.tf.example backend.tf
+$EDITOR backend.tf  # update bucket, key, region, dynamodb_table
+make init
+```
+
+Security options:
+- Set `use_secure_string=true` and optionally `kms_key_arn` to store the value as `SecureString` (Lambda will decrypt via IAM).
+- Tune Lambda with `lambda_timeout`, `lambda_memory_mb`, and `reserved_concurrency`.
+- Logs retention is configurable via `log_retention_days`.
