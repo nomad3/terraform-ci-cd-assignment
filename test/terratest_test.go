@@ -44,6 +44,7 @@ func TestDynamicStringService(t *testing.T) {
 	if useLocal {
 		vars["use_localstack"] = true
 		vars["localstack_endpoint"] = lsEndpoint
+		vars["use_secure_string"] = false
 	}
 
 	envVars := map[string]string{
@@ -162,6 +163,7 @@ func TestDynamicStringUpdateOnly(t *testing.T) {
 	if useLocal {
 		vars["use_localstack"] = true
 		vars["localstack_endpoint"] = lsEndpoint
+		vars["use_secure_string"] = false
 	}
 
 	envVars := map[string]string{

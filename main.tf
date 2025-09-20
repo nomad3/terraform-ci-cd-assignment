@@ -169,8 +169,11 @@ resource "aws_lambda_function" "renderer" {
     mode = "PassThrough"
   }
 
-  dead_letter_config {
-    target_arn = aws_sqs_queue.lambda_dlq.arn
+  dynamic "dead_letter_config" {
+    for_each = var.use_localstack ? [] : [1]
+    content {
+      target_arn = aws_sqs_queue.lambda_dlq[0].arn
+    }
   }
 
   tags       = local.tags
@@ -247,6 +250,7 @@ resource "aws_lambda_permission" "allow_apigw" {
 
 # Dead Letter Queue for Lambda (optional simple SQS)
 resource "aws_sqs_queue" "lambda_dlq" {
+  count                     = var.use_localstack ? 0 : 1
   name                      = "${var.project_name}-${var.environment}-dlq"
   message_retention_seconds = 1209600
   sqs_managed_sse_enabled   = true
@@ -255,6 +259,7 @@ resource "aws_sqs_queue" "lambda_dlq" {
 
 # IAM updates: allow Lambda to send to DLQ
 resource "aws_iam_policy" "lambda_dlq_policy" {
+  count       = var.use_localstack ? 0 : 1
   name        = "${var.project_name}-${var.environment}-lambda-dlq"
   description = "Allow Lambda to send messages to DLQ"
 
@@ -265,7 +270,7 @@ resource "aws_iam_policy" "lambda_dlq_policy" {
         Sid : "SQSSend",
         Effect : "Allow",
         Action : ["sqs:SendMessage"],
-        Resource : aws_sqs_queue.lambda_dlq.arn
+        Resource : aws_sqs_queue.lambda_dlq[0].arn
       }
     ]
   })
@@ -274,8 +279,9 @@ resource "aws_iam_policy" "lambda_dlq_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_dlq_attach" {
+  count      = var.use_localstack ? 0 : 1
   role       = aws_iam_role.lambda_exec.name
-  policy_arn = aws_iam_policy.lambda_dlq_policy.arn
+  policy_arn = aws_iam_policy.lambda_dlq_policy[0].arn
 }
 
 # Basic CloudWatch alarm for Lambda errors
