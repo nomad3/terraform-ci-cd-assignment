@@ -16,11 +16,10 @@ import (
 	"github.com/gruntwork-io/terratest/modules/http-helper"
 	"github.com/gruntwork-io/terratest/modules/random"
 	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/gruntwork-io/terratest/modules/test-structure"
 )
 
 func TestDynamicStringService(t *testing.T) {
-	t.Parallel()
-
 	region := "eu-west-2"
 	uniqueID := strings.ToLower(random.UniqueId())
 	env := fmt.Sprintf("test-%s", uniqueID)
@@ -34,6 +33,12 @@ func TestDynamicStringService(t *testing.T) {
 	if lsEndpoint == "" {
 		lsEndpoint = "http://localhost:4566"
 	}
+	if !useLocal {
+		// Only allow parallelism on real AWS to avoid LocalStack contention
+		t.Parallel()
+	}
+
+	tempTestFolder := test_structure.CopyTerraformFolderToTemp(t, "..", ".")
 
 	vars := map[string]interface{}{
 		"aws_region":             region,
@@ -55,11 +60,11 @@ func TestDynamicStringService(t *testing.T) {
 	}
 
 	terraformOptions := &terraform.Options{
-		TerraformDir:   "..",
-		Vars:           vars,
-		NoColor:        true,
+		TerraformDir:    tempTestFolder,
+		Vars:            vars,
+		NoColor:         true,
 		TerraformBinary: "terraform",
-		EnvVars:        envVars,
+		EnvVars:         envVars,
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
@@ -138,8 +143,6 @@ func TestDynamicStringService(t *testing.T) {
 }
 
 func TestDynamicStringUpdateOnly(t *testing.T) {
-	t.Parallel()
-
 	region := "eu-west-2"
 	uniqueID := strings.ToLower(random.UniqueId())
 	env := fmt.Sprintf("test-upd-%s", uniqueID)
@@ -153,6 +156,11 @@ func TestDynamicStringUpdateOnly(t *testing.T) {
 	if lsEndpoint == "" {
 		lsEndpoint = "http://localhost:4566"
 	}
+	if !useLocal {
+		t.Parallel()
+	}
+
+	tempTestFolder := test_structure.CopyTerraformFolderToTemp(t, "..", ".")
 
 	vars := map[string]interface{}{
 		"aws_region":             region,
@@ -174,11 +182,11 @@ func TestDynamicStringUpdateOnly(t *testing.T) {
 	}
 
 	terraformOptions := &terraform.Options{
-		TerraformDir:   "..",
-		Vars:           vars,
-		NoColor:        true,
+		TerraformDir:    tempTestFolder,
+		Vars:            vars,
+		NoColor:         true,
 		TerraformBinary: "terraform",
-		EnvVars:        envVars,
+		EnvVars:         envVars,
 	}
 
 	defer terraform.Destroy(t, terraformOptions)
