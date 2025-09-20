@@ -76,3 +76,16 @@ make destroy
 ## Notes
 - `boto3` is available in the Lambda runtime by default; no packaging needed
 - For sensitive strings, consider changing the parameter to `SecureString` and granting KMS permissions
+
+## Testing locally with Terratest
+Prerequisites: Go 1.21+, AWS credentials.
+
+```bash
+# Initialize Go module and download deps (first time)
+go mod download
+
+# Run tests (provisions and destroys its own isolated stack)
+make test
+```
+
+The test deploys into a unique `environment` (e.g., `test-<id>`), verifies the HTML, updates the SSM value, verifies again, and then destroys all resources.

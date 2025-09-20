@@ -3,7 +3,7 @@ SHELL := /bin/bash
 TF ?= terraform
 PY ?= python3
 
-.PHONY: init plan apply destroy fmt validate output url update
+.PHONY: init plan apply destroy fmt validate output url update test
 
 init:
 	$(TF) init
@@ -32,3 +32,6 @@ url:
 update:
 	@if [ -z "$(VALUE)" ]; then echo "Usage: make update VALUE='new string'"; exit 2; fi
 	$(PY) scripts/update_dynamic_string.py "$(VALUE)"
+
+test:
+	go test ./test -v -timeout 45m
