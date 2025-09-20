@@ -80,6 +80,10 @@ jobs:
         with:
           terraform_version: 1.9.5
 
+      - name: Temporarily disable remote backend
+        run: |
+          if [ -f backend.tf ]; then mv backend.tf backend.tf.bak; fi
+
       - name: Start LocalStack
         run: |
           docker run -d --name localstack_main \
@@ -101,6 +105,11 @@ jobs:
         run: |
           go mod download
           go test ./test -v -timeout 45m
+
+      - name: Restore backend file
+        if: always()
+        run: |
+          if [ -f backend.tf.bak ]; then mv backend.tf.bak backend.tf; fi
 
   plan:
     if: github.event_name == 'pull_request'
