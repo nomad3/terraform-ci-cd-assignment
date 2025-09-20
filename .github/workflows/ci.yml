@@ -51,6 +51,8 @@ jobs:
           tflint_version: v0.53.0
 
       - name: TFLint Init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: tflint --init
 
       - name: TFLint Run
