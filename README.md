@@ -116,3 +116,45 @@ Troubleshooting:
 - Check LocalStack logs: `docker logs -f localstack_main`
 - Health check: `curl -s http://localhost:4566/_localstack/health | jq`
 - Run in a clean environment: `AWS_PROFILE= AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=eu-west-2 LOCALSTACK=1 make test`
+
+## Primary test case (AWS demo)
+Use this flow during the interview to prove the string can be updated without redeploying and the URL stays the same.
+
+```bash
+# 1) Deploy (first time only)
+make init && make apply
+
+# 2) Get the URL and open it
+URL=$(make url)
+echo "$URL"
+open "$URL"   # or: curl -s "$URL"
+# Expect: <h1>The saved string is Hello from Terraform</h1>
+
+# 3) Update the value (no redeploy) — note the region must match the deployment
+aws ssm put-parameter \
+  --name $(terraform output -raw ssm_parameter_name) \
+  --type String \
+  --value "Arqiva Demo" \
+  --overwrite \
+  --region eu-west-2
+
+# Alternatively, using the helper script (ensure AWS_REGION is set):
+AWS_REGION=eu-west-2 make update VALUE="Arqiva Demo"
+
+# 4) Verify the SAME URL now shows the new value
+curl -s "$URL"
+# Expect: <h1>The saved string is Arqiva Demo</h1>
+
+# Optional sanity check: read the parameter directly
+aws ssm get-parameter \
+  --name $(terraform output -raw ssm_parameter_name) \
+  --region eu-west-2 \
+  --query Parameter.Value --output text
+
+# 5) Cleanup after demo
+make destroy
+```
+
+Notes:
+- If your CLI default region isn’t eu-west-2, pass `--region eu-west-2` (or export `AWS_REGION=eu-west-2`).
+- The API URL does not change when the string changes; all users see the same updated value.
