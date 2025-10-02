@@ -1,0 +1,96 @@
+### Interview walkthrough plan (concise)
+
+- **Elevator pitch**
+  - Serverless Terraform stack on AWS: API Gateway → Lambda (Python) → SSM Parameter Store.
+  - HTML served from Lambda; dynamic string lives in SSM so updating it requires no redeploy; URL is stable.
+
+- **Architecture and rationale**
+  - **API Gateway (HTTP API)**: single stable endpoint, low-latency, cost-effective.
+  - **Lambda (Python 3.12)**: renders HTML, fetches config from SSM.
+  - **SSM Parameter Store**: central config for the dynamic string; supports SecureString + KMS.
+  - **IAM (least privilege)**: Lambda can read the specific parameter and write logs; optional KMS decrypt.
+  - **CloudWatch Logs + KMS**: encrypted logs, retention tuned.
+  - **SQS DLQ**: resilience for Lambda failures (AWS runs).
+  - **KMS**: keys for SSM SecureString and Logs; explicit service principals in key policies.
+  - **LocalStack path**: conditional resources/endpoints for true local testing.
+
+- **Repo tour**
+  - `versions.tf`: providers + LocalStack endpoints (conditional).
+  - `variables.tf`: all inputs incl. `use_localstack`, `use_secure_string`, timeouts, memory, log retention.
+  - `main.tf`: all AWS resources with conditionals for AWS vs LocalStack; KMS keys; DLQ; tracing; IAM.
+  - `outputs.tf`: `api_base_url`, `api_id`, `lambda_function_name`, `ssm_parameter_name`.
+  - `lambda/handler.py`: gets SSM param (`WithDecryption=True`), returns HTML with the string.
+  - `scripts/update_dynamic_string.py`: helper to update the parameter.
+  - `test/terratest_test.go`: end-to-end tests (AWS and LocalStack); string update test.
+  - `.github/workflows/ci.yml`: fmt/validate, lint/scan, Terratest (LocalStack), plan (PR), apply (main/dispatch).
+  - `.tflint.hcl`, `.checkov.yaml`: lint/scan configs.
+  - `Makefile`: apply/destroy, update string, test targets.
+  - `README.md` (+ optional PDF from it): architecture, usage, testing, CI/CD, security notes.
+
+- **Terraform highlights to call out**
+  - Provider `endpoints` block toggled by `var.use_localstack`.
+  - Conditional `count` on API Gateway, DLQ, and IAM attachments to avoid LocalStack gaps.
+  - KMS keys:
+    - Logs key with CloudWatch Logs service principal permissions.
+    - Optional SSM key when `use_secure_string && kms_key_arn == ""`.
+  - Lambda hardening: env encryption, reserved concurrency var, tracing, DLQ (AWS).
+  - Checkov skips only where justified (VPC, code signing, open route) with rationale.
+  - Remote state docs + example backend config.
+
+- **Lambda code talking points**
+  - Reads param name from `PARAM_NAME` env var; falls back to `DEFAULT_STRING`.
+  - Uses `WithDecryption=True` so SecureString works transparently.
+  - Returns simple HTML with the resolved string.
+
+- **Testing strategy**
+  - Terratest deploys to temp dir; unique env name.
+  - AWS test: curl API URL, update SSM, curl again → proves no redeploy needed.
+  - LocalStack test: invokes Lambda directly; API Gateway skipped; KMS/SQS endpoints configured.
+  - CI runs LocalStack E2E; AWS plan/apply are gated to PR/main.
+
+- **CI/CD overview**
+  - Jobs: fmt/validate → lint/scan (tflint/checkov) → terratest (LocalStack) → plan (PR) → apply (main/manual).
+  - Uses repo secrets for AWS OIDC/keys; rate-limit-safe tflint init; backend temporarily disabled for local tests.
+
+- **Security notes**
+  - Least-privilege IAM; KMS for logs and SecureString; SQS SSE; long log retention; `.gitignore` hardened.
+  - Explicit key policies for services; no hardcoded secrets; CI secrets via GitHub.
+  - Trade-offs (documented): no VPC, no code-signing, public route for simplicity of the challenge.
+
+- **Live demo script (1–2 minutes)**
+```bash
+REGION=eu-west-2
+URL="https://<api_id>.execute-api.${REGION}.amazonaws.com"
+PARAM="/dynamic-string-service/dev/dynamic_string"
+
+curl -s "$URL"
+aws ssm get-parameter --name "$PARAM" --with-decryption --region "$REGION" --query 'Parameter.Value' --output text
+TYPE=$(aws ssm get-parameter --name "$PARAM" --region "$REGION" --query 'Parameter.Type' --output text)
+aws ssm put-parameter --name "$PARAM" --type "$TYPE" --value "Arqiva Demo" --overwrite --region "$REGION"
+curl -s "$URL"
+```
+
+- **Likely Q&A and crisp answers**
+  - **Why SSM vs Secrets Manager/DynamoDB?** Config value, not a secret; SSM is cheaper and integrates well; SecureString available when needed.
+  - **Why not S3+CloudFront static site?** Need dynamic value without redeploy; Lambda keeps URL stable and reads runtime config.
+  - **Cost and scaling?** Near-zero idle; scales automatically; reserved concurrency controllable.
+  - **Cold starts?** Minimal for Python; can set provisioned concurrency if needed.
+  - **Auth?** Public for demo; add authorizers/WAF in production; documented skip rationale.
+  - **State management?** Remote backend (S3+DynamoDB) recommended; CI uses OIDC/role for plan/apply.
+  - **Local testing coverage?** API Gateway is skipped on LocalStack due to coverage; we invoke Lambda directly and cover AWS fully in the main demo.
+
+- **If time permits (embellishments)**
+  - Custom domain + ACM; caching headers; API authorizer/WAF; parameter change notifications; Canary/CodeDeploy; Lambda Powertools; dashboards and SLOs; encrypted artifacts and code-signing; per-env workspaces.
+
+- **How to close**
+  - Reiterate: single stable URL, runtime updates via SSM, secure-by-default, CI/CD and tests included, local dev path supported.
+
+- **What to open during the walkthrough**
+  - `main.tf` (IAM blocks, KMS keys, Lambda, API).
+  - `lambda/handler.py`.
+  - `test/terratest_test.go`.
+  - `.github/workflows/ci.yml`.
+  - `README.md` sections: Testing, CI/CD, Security.
+
+- **Tip**
+  - Keep the terminal ready with `curl` and `aws ssm` commands and CloudWatch Logs console tab to show the Lambda invocation logs immediately after the update.
